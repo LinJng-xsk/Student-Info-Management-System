@@ -3,20 +3,20 @@ package com.rabbiter.si.controller;
 import com.rabbiter.si.entity.Student;
 import com.rabbiter.si.service.StudentService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-
-/**
- * @Author: 
- */
 
 @RestController
 @CrossOrigin("*")
 @RequestMapping("/student")
 public class StudentController {
+
     @Autowired
     private StudentService studentService;
+
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @PostMapping("/addStudent")
     public boolean addStudent(@RequestBody Student student) {
@@ -28,12 +28,10 @@ public class StudentController {
     public boolean login(@RequestBody Student student) {
         System.out.println("正在验证学生登陆 " + student);
         Student s = studentService.findById(student.getSid());
-        if (s == null || !s.getPassword().equals(student.getPassword())) {
+        if (s == null) {
             return false;
         }
-        else {
-            return true;
-        }
+        return passwordEncoder.matches(student.getPassword(), s.getPassword());
     }
 
     @PostMapping("/findBySearch")

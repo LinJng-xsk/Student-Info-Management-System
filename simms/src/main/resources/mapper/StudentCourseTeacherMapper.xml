@@ -1,66 +1,99 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper
-        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.rabbiter.si.mapper.StudentCourseTeacherMapper">
-    <select id="findByStudentId" resultType="CourseTeacherInfo">
-        SELECT c.cid, c.cname, t.tid, t.tname, sct.grade, c.ccredit
-        FROM student_course_teacher sct INNER JOIN teacher t ON sct.tid = t.tid
-                INNER JOIN course c ON sct.cid = c.cid
+
+    <!-- 学生已选课程 -->
+    <select id="findByStudentId" resultType="com.rabbiter.si.entity.CourseTeacherInfo">
+        SELECT ct.ctid, ct.term, c.cid, c.cname, c.ccredit,
+               t.tid, t.tname, sct.grade
+        FROM student_course_teacher sct
+                 JOIN course_teacher ct ON sct.ctid = ct.ctid
+                 JOIN course c ON ct.cid = c.cid
+                 JOIN teacher t ON ct.tid = t.tid
         WHERE sct.sid = #{sid}
-        <if test="term != 'null' and term != ''">
-            AND sct.term = #{term}
-        </if>
+          AND ct.term = #{term}
+          AND sct.deleted = 0
     </select>
 
-    <select id="findBySearch" resultType="SCTInfo">
-        SELECT c.cid, c.cname, t.tid, t.tname, s.sid, s.sname, sct.grade, sct.term
-        FROM student_course_teacher sct INNER JOIN student s ON sct.sid = s.sid
-                INNER JOIN teacher t ON sct.tid = t.tid
-                INNER JOIN course c ON sct.cid = c.cid
-        <where>
-            <if test="sid != null">
-                s.sid = #{sid}
-            </if>
-            <if test="tid != null">
-                AND t.tid = #{tid}
-            </if>
-            <if test="cid != null">
-                AND c.cid = #{cid}
-            </if>
-            <if test="sname != null">
-                <if test="sFuzzy == 0">
-                    AND s.sname = #{sname}
-                </if>
-                <if test="sFuzzy == 1">
-                    AND s.sname LIKE CONCAT('%', #{sname}, '%')
-                </if>
-            </if>
-            <if test="tname != null">
-                <if test="tFuzzy == 0">
-                    AND t.tname = #{tname}
-                </if>
-                <if test="tFuzzy == 1">
-                    AND t.tname LIKE CONCAT('%', #{tname}, '%')
-                </if>
-            </if>
-            <if test="cname != null">
-                <if test="cFuzzy == 0">
-                    AND c.cname = #{cname}
-                </if>
-                <if test="cFuzzy == 1">
-                    AND c.cname LIKE CONCAT('%', #{cname}, '%')
-                </if>
-            </if>
-            <if test="term != 'null' and term != null">
-                AND sct.term = #{term}
-            </if>
-            <if test="lowBound != null">
-                AND sct.grade >= #{lowBound}
-            </if>
-            <if test="highBound != null">
-                AND #{highBound} >= sct.grade
-            </if>
-        </where>
+    <!-- 教师端成绩条件搜索 -->
+    <select id="findBySearch" resultType="com.rabbiter.si.entity.SCTInfo">
+        SELECT sct.sctid, s.sname, c.cname, t.tname, sct.grade, ct.term
+        FROM student_course_teacher sct
+        JOIN student s ON sct.sid = s.sid
+        JOIN course_teacher ct ON sct.ctid = ct.ctid
+        JOIN course c ON ct.cid = c.cid
+        JOIN teacher t ON ct.tid = t.tid
+        WHERE sct.deleted = 0
+        <if test="sid != null">AND sct.sid = #{sid}</if>
+        <if test="sname != null and sname != ''">
+            <choose>
+                <when test="sFuzzy == 1">AND s.sname LIKE CONCAT('%', #{sname}, '%')</when>
+                <otherwise>AND s.sname = #{sname}</otherwise>
+            </choose>
+        </if>
+        <if test="cid != null">AND ct.cid = #{cid}</if>
+        <if test="cname != null and cname != ''">
+            <choose>
+                <when test="cFuzzy == 1">AND c.cname LIKE CONCAT('%', #{cname}, '%')</when>
+                <otherwise>AND c.cname = #{cname}</otherwise>
+            </choose>
+        </if>
+        <if test="tid != null">AND ct.tid = #{tid}</if>
+        <if test="tname != null and tname != ''">
+            <choose>
+                <when test="tFuzzy == 1">AND t.tname LIKE CONCAT('%', #{tname}, '%')</when>
+                <otherwise>AND t.tname = #{tname}</otherwise>
+            </choose>
+        </if>
+        <if test="lowBound != null">AND sct.grade &gt;= #{lowBound}</if>
+        <if test="highBound != null">AND sct.grade &lt;= #{highBound}</if>
+        <if test="term != null and term != ''">AND ct.term = #{term}</if>
     </select>
+
+    <!-- 所有学期 -->
+    <select id="findAllTerm" resultType="java.lang.String">
+        SELECT DISTINCT term FROM course_teacher WHERE deleted = 0
+    </select>
+
+    <!-- 检查是否已选 -->
+    <select id="findBySCT" resultType="com.rabbiter.si.entity.StudentCourseTeacher">
+        SELECT sct.* FROM student_course_teacher sct
+                              JOIN course_teacher ct ON sct.ctid = ct.ctid
+        WHERE sct.sid = #{sct.sid}
+          AND ct.cid = #{sct.cid}
+          AND ct.tid = #{sct.tid}
+          AND ct.term = #{sct.term}
+          AND sct.deleted = 0
+    </select>
+
+    <!-- 选课插入：根据 cid+tid+term 查出 ctid -->
+    <insert id="insert">
+        INSERT INTO student_course_teacher (ctid, sid)
+        SELECT ct.ctid, #{s.sid} FROM course_teacher ct
+        WHERE ct.cid = #{s.cid}
+          AND ct.tid = #{s.tid}
+          AND ct.term = #{s.term}
+    </insert>
+
+    <!-- 更新成绩 -->
+    <update id="updateById">
+        UPDATE student_course_teacher sct
+            JOIN course_teacher ct ON sct.ctid = ct.ctid
+            SET sct.grade = #{grade}
+        WHERE sct.sid = #{sid}
+          AND ct.cid = #{cid}
+          AND ct.tid = #{tid}
+          AND ct.term = #{term}
+    </update>
+
+    <!-- 退课 -->
+    <delete id="deleteBySCT">
+        DELETE sct FROM student_course_teacher sct
+        JOIN course_teacher ct ON sct.ctid = ct.ctid
+        WHERE sct.sid = #{sct.sid}
+        AND ct.cid = #{sct.cid}
+        AND ct.tid = #{sct.tid}
+    </delete>
+
 </mapper>
