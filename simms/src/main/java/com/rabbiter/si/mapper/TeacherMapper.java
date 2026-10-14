@@ -3,9 +3,12 @@ package com.rabbiter.si.mapper;
 import com.rabbiter.si.entity.Teacher;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * @Author: 
@@ -25,5 +28,15 @@ public interface TeacherMapper {
     boolean save(@Param("teacher") Teacher teacher);
 
     boolean deleteById(@Param("tid") Integer tid);
+
+
+    // TeacherMapper.java
+    @Select("SELECT tid, tname, password FROM teacher WHERE deleted = 0")
+    List<Map<String, Object>> findAllPwd();
+
+    @Update("UPDATE teacher SET password = #{pwd} WHERE tid = #{tid}")
+    void updatePwd(@Param("tid") Integer tid, @Param("pwd") String pwd);
+
+
 
 }
